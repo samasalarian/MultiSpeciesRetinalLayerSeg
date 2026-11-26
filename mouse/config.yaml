@@ -1,0 +1,59 @@
+# Choroid ablation (Experiment C). IDENTICAL to ordered_boundary_frozen.yaml except: name, output_dir,
+# labels.num_classes / num_layers (L01..L09), boundary.surfaces (10). L10 pixels -> 255 (ignore) in memory; surface 10
+# (top of L10 = RPE-choroid interface = bottom of L09) kept; surface 11 (bottom of L10) removed.
+# Old -> new surface index: 1..10 -> 1..10 (unchanged); 11 -> removed. Class index: 0..9 unchanged; 10 -> removed.
+# FROZEN config - Model B (ordered-boundary multitask comparator). Frozen 2026-10-08 before any cross-validation result.
+# Identical to unet_frozen.yaml except `name`, the boundary head and the boundary loss term.
+name: ordered_boundary_no_choroid
+output_dir: outputs/choroid_ablation
+data:
+  derived_dir: initial_method/outputs/derived
+  input: crop grey channel only (S##_image.png); crop-overlay pixels (ignore bit 1) inpainted (nearest fill + 5x5 median)
+  normalisation: per-image z-score
+  never_used: [raw_ai, outline, solid_rgb, filenames, private_ids]
+labels:
+  num_classes: 10                                 # background + L01..L09
+  num_layers: 9
+  ignore_index: 255
+split:
+  scheme: leave_one_group_out
+  group_key: split_group
+model:
+  arch: smp.Unet (identical encoder/decoder/segmentation head to Model A) + boundary head
+  encoder: resnet18
+  encoder_weights: imagenet
+  in_channels: 1
+boundary:
+  surfaces: 10                                    # top of L01..L10 (top of L10 = bottom of L09)
+  head: 3x3 conv on 16-ch decoder output -> per-surface row softmax -> soft-argmax position p_k
+  ordering: "s_1 = p_1; s_k = s_(k-1) + softplus_beta(p_k - s_(k-1))  (first surface + non-negative distances)"
+  softplus_beta: 2.0
+  supervision: valid columns only, and only where the full stack lies inside the patch
+  loss: smooth_l1 on coordinates / patch height
+  smooth_l1_beta_normalised: 0.01                 # ~2.9 px at patch height 288
+  loss_weight: 10.0                               # fixed a priori; NOT tuned on any held-out data
+  row_ce_weight: 1.0                              # v2 (see note below); fixed before any cross-validation
+  dice_mask_from: "ordered boundaries, deterministic rounding round(s_k) <= y < round(s_k+1); seg head reported as auxiliary"
+train:
+  device: mps
+  seed: 0
+  iterations: 1500
+  batch_size: 4
+  patch: [288, 512]
+  min_valid_col_frac: 0.5
+  optimizer: {name: adamw, lr: 1.0e-3, weight_decay: 1.0e-4}
+  scheduler: cosine (T_max = iterations)
+  loss: {ce_weight: 1.0, dice_weight: 1.0}
+  augment: "hflip p=0.5; random vertical crop offset; contrast x[0.8,1.2]; brightness +-0.2; gamma [0.8,1.25]; gaussian noise sd 0.05; re-standardise"
+inference:
+  full_width: true
+eval:
+  scored_region: S##_valid.png
+  surfaces: predicted ordered surfaces (sub-pixel)
+  topology_violation: any s_(k+1) < s_k in the raw ordered output, before any clipping
+  catastrophic_scan: "mean |boundary error| > 10 px OR any layer Dice < 0.5"
+  catastrophic_column: "any surface |error| > 20 px"
+preflight:
+  max_loss_ratio: 0.3
+  min_dice_layer_macro: 0.85
+  max_mae_px: 3.0
