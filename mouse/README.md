@@ -26,8 +26,9 @@ pip install -r requirements.txt
 source .venv/bin/activate
 python make_smoke_test.py
 python predict.py smoke_test/synthetic_crop.png --out smoke_test_output
+python make_smoke_test.py --check smoke_test_output/synthetic_crop
 ```
-The synthetic image only checks that everything runs. Its segmentation is not meaningful.
+The last command should print `smoke test PASSED`. The synthetic image only checks that everything runs. Its segmentation is not meaningful.
 
 ## Run on your crops
 ```bash
@@ -41,12 +42,16 @@ python predict.py path/to/crops_folder --out results       # every .png/.tif/.ti
 - **Choose a device:** `--device cpu` (the default `auto` uses a GPU if one is available).
 
 ## Output (one folder per image)
+**For expert review, use the two TIFF overlays.** Both are the input crop itself, at the same 300 × 1000 size, as single-page 8-bit RGB TIFFs with no legend or added margins. Excluded ONH columns are left as in the input.
+
 | file | contents |
 |---|---|
+| `layers_overlay.tif` | **Primary review.** Input with L01–L09 filled in their colours at 35% opacity (see `LAYERS.md`). Background is unchanged. No boundary lines. |
+| `boundaries_overlay.tif` | **Primary review.** Input with the ten boundaries drawn as 1-pixel lines: b01–b09 in the colour of the layer below them, b10 in white. No fills. |
 | `mask.tif` | single-page 8-bit TIFF, 300 × 1000: 0 = background, 1–9 = L01–L09, 255 = excluded ONH column |
 | `boundaries.npy` / `boundaries.csv` | 10 × 1000 boundary rows (b01–b10), sub-pixel, 0 = top row of the crop. NaN or empty = excluded ONH column |
-| `overlay.png` | input (top) and coloured layers with white boundaries (bottom) |
 | `info.json` | settings and quick checks (labels 0–9, boundaries finite and ordered) |
+| `overlay.png` | optional quick preview: input, layers with white boundaries, and a legend in one image |
 
 Boundary rows are in **crop** coordinates. To place them in the raw frame, add the row where your crop starts.
 

@@ -10,7 +10,9 @@ For each image, OUTPUT_DIR/<image name>/ receives:
     mask.tif        uint8 labels: 0 background, 1-9 = L01-L09 (255 = excluded ONH column, only with --onh-*)
     boundaries.npy  float32 (10, width): row of boundary k in each column (NaN = excluded ONH column)
     boundaries.csv  the same values, one row per column
-    overlay.png     colour overlay for visual review
+    layers_overlay.tif      PRIMARY REVIEW: input with L01-L09 filled in their colours (8-bit RGB, same size as input)
+    boundaries_overlay.tif  PRIMARY REVIEW: input with the ten boundaries drawn (8-bit RGB, same size as input)
+    overlay.png     optional preview: input, layers + boundaries, and a legend in one image
     info.json       settings, ONH handling, and quick checks
 """
 import argparse
@@ -152,6 +154,49 @@ def infer(model, img, device):
 
 
 # ----------------------------------------------------------------------------- outputs
+LAYER_ALPHA = 0.35                      # fill opacity of the layer colours in layers_overlay.tif (same for all layers)
+BOUNDARY_COLOURS = PALETTE + [(255, 255, 255)]   # b01-b09: colour of the layer whose top they mark; b10: white
+
+
+def layers_overlay(rgb, mask):
+    """Input image (unchanged outside layers) with L01-L09 filled at constant opacity; label 0 and 255 (excluded
+    ONH columns) stay uncoloured. Same size as the input, 8-bit RGB, no lines, legend or extra rows."""
+    base = rgb.astype(np.float32)
+    out = base.copy()
+    for k, c in enumerate(PALETTE, 1):
+        m = mask == k
+        out[m] = (1 - LAYER_ALPHA) * base[m] + LAYER_ALPHA * np.array(c, np.float32)
+    return np.rint(out).clip(0, 255).astype(np.uint8)
+
+
+def boundaries_overlay(rgb, surf):
+    """Input image with the ten boundaries drawn as 1-px polylines over consecutive non-excluded columns
+    (NaN columns = excluded ONH are skipped). Same size as the input, 8-bit RGB, no fills, legend or extra rows."""
+    from PIL import ImageDraw
+    H, W = rgb.shape[:2]
+    pil = Image.fromarray(rgb.copy())
+    d = ImageDraw.Draw(pil)
+    for k in range(surf.shape[0] - 1, -1, -1):          # draw b10 first so b01..b09 stay on top where they meet
+        ys = np.minimum(H - 1, np.rint(surf[k]))
+        run = []
+        for x in range(W + 1):
+            if x < W and np.isfinite(ys[x]):
+                run.append((x, int(ys[x])))
+                continue
+            if len(run) == 1:
+                d.point(run, fill=BOUNDARY_COLOURS[k])
+            elif run:
+                d.line(run, fill=BOUNDARY_COLOURS[k], width=1)
+            run = []
+    return np.array(pil)
+
+
+def save_rgb_tiff(arr, path):
+    """Single-page, uncompressed, 8-bit RGB TIFF."""
+    assert arr.dtype == np.uint8 and arr.ndim == 3 and arr.shape[2] == 3
+    Image.fromarray(arr).save(path)
+
+
 def overlay_image(rgb, mask, surf, excl):
     base = np.repeat(rgb[..., :1], 3, -1).astype(np.float32)
     col = np.zeros_like(base)
@@ -194,7 +239,7 @@ def onh_columns(core, W):
 
 
 def run_one(path, out_root, model, cfg, device, core):
-    rgb = read_image(path)
+    rgb = read_image(path)                               # 8-bit RGB view of the input (greyscale replicated)
     H, W = rgb.shape[:2]
     img, overlay = preprocess(rgb)
     surf, mask = infer(model, img, device)
@@ -210,7 +255,9 @@ def run_one(path, out_root, model, cfg, device, core):
         w.writerow(["column"] + [f"b{k:02d}" for k in range(1, surf.shape[0] + 1)])
         for x in range(W):
             w.writerow([x] + ["" if np.isnan(v) else f"{v:.3f}" for v in surf[:, x]])
-    overlay_image(rgb, mask, surf, excl).save(od / "overlay.png")
+    save_rgb_tiff(layers_overlay(rgb, mask), od / "layers_overlay.tif")          # primary review output
+    save_rgb_tiff(boundaries_overlay(rgb, surf), od / "boundaries_overlay.tif")  # primary review output
+    overlay_image(rgb, mask, surf, excl).save(od / "overlay.png")                # optional combined preview
     keep = ~excl
     labels = sorted(int(v) for v in np.unique(mask[:, keep])) if keep.any() else []
     checks = {"mask_labels": labels, "labels_within_0_9": set(labels) <= set(range(10)),
@@ -218,6 +265,9 @@ def run_one(path, out_root, model, cfg, device, core):
               "boundaries_ordered_noncrossing": bool((np.diff(surf[:, keep], axis=0) >= 0).all())}
     info = {"input": path.name, "height": H, "width": W, "device": str(device),
             "mask_file": "mask.tif (uint8; 0 background, 1-9 = L01-L09, 255 = excluded ONH column)",
+            "review_files": {"layers_overlay.tif": f"input with L01-L09 filled at opacity {LAYER_ALPHA}",
+                             "boundaries_overlay.tif": "input with b01-b09 in the colour of the layer below, b10 white",
+                             "overlay.png": "optional preview (input + overlay + legend)"},
             "burned_in_overlay_pixels_inpainted": int(overlay.sum()),
             "onh_core": list(core) if core else None, "onh_excluded_columns": excl_range,
             "boundaries": "b01-b09 = top of L01-L09; b10 = bottom of L09 (RPE/choroid interface); rows, 0 = top",
