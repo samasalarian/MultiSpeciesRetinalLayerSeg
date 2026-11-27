@@ -1,7 +1,16 @@
-.DS_Store
+# User inputs and outputs are never committed
+input/mouse/*
+input/chick/*
+!input/mouse/.gitkeep
+!input/chick/.gitkeep
+output/*
+
+.venv/
 __pycache__/
 *.pyc
-.venv/
+.DS_Store
+
+# Synthetic smoke-test files
 synthetic/
 out/
 smoke_test/
