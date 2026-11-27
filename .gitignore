@@ -10,8 +10,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# Synthetic smoke-test files
-synthetic/
-out/
+# Local test files and outputs are never committed
 smoke_test/
 smoke_test_output/
+synthetic/
+synthetic_output/
+out/

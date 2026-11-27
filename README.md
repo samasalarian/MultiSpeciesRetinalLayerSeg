@@ -58,15 +58,6 @@ Every supported image in `input/mouse/` or `input/chick/` is processed. Running 
   - Excluded columns are `255` in `mask.tif` and `NaN` (an empty cell in the CSV) in the boundary files. They are left as in the input in the overlays.
 - `--auto-crop` (chick): for full-height frames. A 300-row window is picked from image intensity alone by finding the bright outer-retinal band, and then processed as a crop. Boundary rows are still given in the frame's coordinates. This step was not separately cross-validated.
 
-### Quick test with synthetic images (no real data)
-
-```bash
-python mouse/make_smoke_test.py && cp mouse/smoke_test/synthetic_crop.tif input/mouse/
-python chick/make_synthetic_oct.py --output-dir chick/synthetic && cp chick/synthetic/synthetic_crop.tif input/chick/
-```
-
-Then run the three commands above. The results only show that everything runs; segmentations of synthetic images mean nothing.
-
 ## Outputs
 
 ```text
