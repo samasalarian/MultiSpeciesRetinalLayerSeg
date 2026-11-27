@@ -43,7 +43,7 @@ def main() -> int:
     ap.add_argument("--species", choices=("mouse", "chick"), required=True)
     ap.add_argument("--model", choices=("unet", "mst"), help="chick only (required for chick)")
     ap.add_argument("--device", default="auto", choices=("auto", "cpu", "mps", "cuda"))
-    ap.add_argument("--auto-crop", action="store_true", help="chick only: inputs are full-height frames (see chick/README.md)")
+    ap.add_argument("--auto-crop", action="store_true", help="chick only: inputs are full-height frames (see README.md)")
     ap.add_argument("--onh-csv", help="mouse only: CSV image,core_start,core_end to exclude the optic nerve head")
     args = ap.parse_args()
     if args.species == "chick" and not args.model:

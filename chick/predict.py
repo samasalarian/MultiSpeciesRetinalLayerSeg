@@ -4,7 +4,7 @@
     python predict.py --model unet --input scan.tif --output-dir results/scan_unet
     python predict.py --model mst  --input scan.tif --output-dir results/scan_mst
 
-See README.md for the input requirements and output definitions.
+See the repository root README.md for the input requirements and output definitions.
 """
 
 from __future__ import annotations

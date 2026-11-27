@@ -5,7 +5,7 @@ Usage:
     python predict.py INPUT [--out OUTPUT_DIR] [--onh-core START END | --onh-csv FILE] [--device auto|cpu|mps|cuda]
 
 INPUT is one image (.png/.tif/.tiff/.jpg/.bmp) or a folder of them. Each image must be a PREPARED crop: a single
-8-bit greyscale or RGB image of exactly 300 rows x 1000 columns (raw OCT frames must be cropped first; see README).
+8-bit greyscale or RGB image of exactly 300 rows x 1000 columns (raw OCT frames must be cropped first; see the root README.md).
 For each image, OUTPUT_DIR/<image name>/ receives:
     mask.tif        uint8 labels: 0 background, 1-9 = L01-L09 (255 = excluded ONH column, only with --onh-*)
     boundaries.npy  float32 (10, width): row of boundary k in each column (NaN = excluded ONH column)
