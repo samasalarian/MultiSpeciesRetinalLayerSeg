@@ -1,0 +1,7 @@
+# Shared by both models (unet and mst).
+torch>=2.1
+segmentation-models-pytorch==0.5.0
+numpy>=1.24
+scipy>=1.10
+pillow>=10.0
+pyyaml>=6.0

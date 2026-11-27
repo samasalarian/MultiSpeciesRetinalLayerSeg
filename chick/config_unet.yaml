@@ -1,0 +1,81 @@
+# Inference configuration for the UNET chick model. Read by predict.py; do not edit.
+model: unet
+description: "Supervised U-Net (ResNet-18 encoder) with boundary-visibility head"
+checkpoint: model_unet.pth
+checkpoint_sha256: 8376d34b9d1a3a37ee93266cec9fa7591d65b5f1205ffeb0e5e75ac8e80b7855
+checkpoint_key: model
+architecture:
+  family: segmentation_models_pytorch.Unet
+  encoder_name: resnet18
+  in_channels: 1
+  location_head: one sigmoid heatmap per boundary
+  visibility_head: one sigmoid visibility logit per boundary per column
+boundaries: [RNFL, GCL, IPL, INL, OPL, ONL, ELM, EZ, IZ, RPE]
+boundary_colors:
+  RNFL: [255, 0, 0]
+  GCL: [0, 255, 0]
+  IPL: [0, 0, 255]
+  INL: [255, 255, 0]
+  OPL: [255, 0, 255]
+  ONL: [0, 255, 255]
+  ELM: [255, 128, 0]
+  EZ: [128, 255, 0]
+  IZ: [128, 0, 255]
+  RPE: [255, 0, 192]
+layers:  # region of each named layer = rows strictly below upper_boundary down to lower_boundary
+  - {name: RNFL, upper_boundary: null, lower_boundary: RNFL, color: [255, 0, 0]}
+  - {name: GCL, upper_boundary: RNFL, lower_boundary: GCL, color: [0, 255, 0]}
+  - {name: IPL, upper_boundary: GCL, lower_boundary: IPL, color: [0, 0, 255]}
+  - {name: INL, upper_boundary: IPL, lower_boundary: INL, color: [255, 255, 0]}
+  - {name: OPL, upper_boundary: INL, lower_boundary: OPL, color: [255, 0, 255]}
+  - {name: ONL, upper_boundary: OPL, lower_boundary: ONL, color: [0, 255, 255]}
+  - {name: ELM, upper_boundary: ONL, lower_boundary: ELM, color: [255, 128, 0]}
+  - {name: EZ, upper_boundary: ELM, lower_boundary: EZ, color: [128, 255, 0]}
+  - {name: IZ, upper_boundary: EZ, lower_boundary: IZ, color: [128, 0, 255]}
+  - {name: RPE, upper_boundary: IZ, lower_boundary: RPE, color: [255, 0, 192]}
+input:
+  formats: [tif, tiff]  # single page
+  dtypes: [uint8, uint16]
+  channels: grayscale (1 channel, or RGB/RGBA with identical R=G=B and opaque alpha)
+  width: 1000
+  precropped_height_range: [240, 320]  # validated crops were 246-300 rows
+  auto_crop:  # optional, for full-height frames (--auto-crop)
+    crop_height: 300
+    target_outer_retina_row: 212
+  orientation: B-scan, vitreous at top, choroid at bottom; either left-right direction
+preprocessing:
+  normalization_low_percentile: 1.0
+  normalization_high_percentile: 99.5
+  gaussian_filter_sigma: 0.0
+  pad_divisor: 32
+  minimum_padded_height: 320
+  pad_mode: reflect (centred)
+inference:
+  patch_width: 256
+  stride: 128
+  location_activation: sigmoid
+  patch_merge: mean of overlapping patches
+visibility_thresholds:
+  RNFL: 0.5
+  GCL: 0.5
+  IPL: 0.5
+  INL: 0.5
+  OPL: 0.5
+  ONL: 0.5
+  ELM: 0.5
+  EZ: 0.5
+  IZ: 0.5
+  RPE: 0.5
+decoder:  # gap-aware segment-wise decoder
+  top_k: 12
+  continuity_weight: 0.35
+  continuity_delta_px: 4.0
+  transition_cap: 8.0
+  minimum_gap_px: 1
+  anchor_weight: 0.2
+  anchor_delta: 2.0
+training:
+  summary: "supervised on labeled scans only; 30 epochs (median validation-selected epoch in cross-validation)"
+  seed: 42
+  optimizer: AdamW, learning rate 1e-4 constant, weight decay 1e-4
+  batch_size: 4
